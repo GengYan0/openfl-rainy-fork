@@ -36,6 +36,7 @@ class TextureBase extends EventDispatcher
 	@:noCompletion private static var __compressedFormatsAlpha:Map<Int, Int>;
 	@:noCompletion private static var __supportsBGRA:Null<Bool> = null;
 	@:noCompletion private static var __textureFormat:Int;
+	@:noCompletion public static var depthTextureEnabled:Bool = false;
 	@:noCompletion private static var __textureInternalFormat:Int;
 
 	@:noCompletion private var __alphaTexture:TextureBase;
@@ -43,6 +44,7 @@ class TextureBase extends EventDispatcher
 	@:noCompletion private var __context:Context3D;
 	@:noCompletion private var __format:Int;
 	@:noCompletion private var __glDepthRenderbuffer:GLRenderbuffer;
+	@:noCompletion private var __glDepthTexture:GLTexture;
 	@:noCompletion private var __glFramebuffer:GLFramebuffer;
 	@:noCompletion private var __glStencilRenderbuffer:GLRenderbuffer;
 	@:noCompletion private var __height:Int;
@@ -174,11 +176,22 @@ class TextureBase extends EventDispatcher
 			__glDepthRenderbuffer = null;
 		}
 
+		if (__glDepthTexture != null)
+		{
+			gl.deleteTexture(__glDepthTexture);
+			__glDepthTexture = null;
+		}
+
 		if (__glStencilRenderbuffer != null)
 		{
 			gl.deleteRenderbuffer(__glStencilRenderbuffer);
 			__glStencilRenderbuffer = null;
 		}
+	}
+
+	@:noCompletion public function getDepthTextureID():GLTexture
+	{
+		return __glDepthTexture;
 	}
 
 	@SuppressWarnings("checkstyle:Dynamic")
@@ -203,7 +216,70 @@ class TextureBase extends EventDispatcher
 			}
 		}
 
-		if (enableDepthAndStencil && __glDepthRenderbuffer == null)
+		if (enableDepthAndStencil && __glDepthRenderbuffer == null && __glDepthTexture == null)
+		{
+			__context.__bindGLFramebuffer(__glFramebuffer);
+
+			if (depthTextureEnabled)
+			{
+				__glDepthTexture = gl.createTexture();
+				gl.bindTexture(gl.TEXTURE_2D, __glDepthTexture);
+				gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT, __width, __height, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_SHORT, null);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+				gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, __glDepthTexture, 0);
+
+				var codeD = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+
+				if (codeD != gl.FRAMEBUFFER_COMPLETE)
+				{
+					Log.warn('Context3D: depth texture attachment incomplete status:${codeD} ${__width}x${__height} -> falling back to renderbuffer');
+					gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, null, 0);
+					gl.deleteTexture(__glDepthTexture);
+					__glDepthTexture = null;
+				}
+			}
+
+			if (__glDepthTexture == null)
+			{
+				if (Context3D.__glDepthStencil != 0)
+				{
+					__glDepthRenderbuffer = gl.createRenderbuffer();
+					__glStencilRenderbuffer = __glDepthRenderbuffer;
+
+					gl.bindRenderbuffer(gl.RENDERBUFFER, __glDepthRenderbuffer);
+					gl.renderbufferStorage(gl.RENDERBUFFER, Context3D.__glDepthStencil, __width, __height);
+					gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, __glDepthRenderbuffer);
+				}
+				else
+				{
+					__glDepthRenderbuffer = gl.createRenderbuffer();
+					__glStencilRenderbuffer = gl.createRenderbuffer();
+
+					gl.bindRenderbuffer(gl.RENDERBUFFER, __glDepthRenderbuffer);
+					gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, __width, __height);
+					gl.bindRenderbuffer(gl.RENDERBUFFER, __glStencilRenderbuffer);
+					gl.renderbufferStorage(gl.RENDERBUFFER, gl.STENCIL_INDEX8, __width, __height);
+
+					gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, __glDepthRenderbuffer);
+					gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.STENCIL_ATTACHMENT, gl.RENDERBUFFER, __glStencilRenderbuffer);
+				}
+
+				if (__context.__enableErrorChecking)
+				{
+					var code = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+
+					if (code != gl.FRAMEBUFFER_COMPLETE)
+					{
+						Log.warn('Error: Context3D.setRenderToTexture status:${code} width:${__width} height:${__height}');
+					}
+				}
+			}
+		}
+
+		else if (enableDepthAndStencil && __glDepthRenderbuffer == null && !depthTextureEnabled)
 		{
 			__context.__bindGLFramebuffer(__glFramebuffer);
 
