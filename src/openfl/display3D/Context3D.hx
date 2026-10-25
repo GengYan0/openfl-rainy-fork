@@ -1995,6 +1995,7 @@ import lime.math.Vector2;
 
 		gl.bindTexture(gl.TEXTURE_2D, texture);
 		__contextState.__currentGLTexture2D = texture;
+		__forgetSamplerUnit();
 
 		// }
 	}
@@ -2007,8 +2008,28 @@ import lime.math.Vector2;
 
 		gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
 		__contextState.__currentGLTextureCubeMap = texture;
+		__forgetSamplerUnit();
 
 		// }
+	}
+
+	@:noCompletion private function __forgetSamplerUnit():Void
+	{
+		var unit = __contextState.glActiveTextureUnit;
+		var stale = __contextState.glSamplerStale;
+
+		if (unit < 0)
+		{
+			// Unknown unit: nothing can be attributed, so drop the whole shadow.
+			__contextState.glSamplerTextures.resize(0);
+			stale.resize(0);
+			return;
+		}
+
+		while (stale.length <= unit)
+			stale.push(false);
+
+		stale[unit] = true;
 	}
 
 	@:noCompletion private function __dispose():Void
@@ -2364,6 +2385,8 @@ import lime.math.Vector2;
 		var sampler = 0;
 		var texture:TextureBase;
 		var samplerState:SamplerState;
+		var bound:Array<TextureBase> = __contextState.glSamplerTextures;
+		var stale:Array<Bool> = __contextState.glSamplerStale;
 
 		for (i in 0...__state.textures.length)
 		{
@@ -2375,13 +2398,32 @@ import lime.math.Vector2;
 				samplerState = __state.samplerStates[i];
 			}
 
-			gl.activeTexture(gl.TEXTURE0 + sampler);
+			// A texture that is already bound on this sampler is not re-bound. Every
+			// draw call reaches here, and re-binding an unchanged texture costs a full
+			// driver validation pass for nothing. Sampling params still go through,
+			// since those are cheap and are what typically changes between draws.
+			//
+			// `i < bound.length` matters: an out-of-range read also yields null, so a
+			// missing entry would look identical to a recorded null and the first draw
+			// after every invalidate would skip an unbind that was still needed.
+			// `!stale[i]` covers the other half — a slot some other caller has rebound
+			// behind our back still holds the old object here.
+			if (i < bound.length && (i >= stale.length || !stale[i]) && bound[i] == texture)
+			{
+				if (texture != null)
+				{
+					__setGLActiveTexture(sampler);
+					texture.__setSamplerState(samplerState);
+					__flushGLAlphaSampler(sampler, texture, samplerState);
+				}
+				sampler++;
+				continue;
+			}
+
+			__setGLActiveTexture(sampler);
 
 			if (texture != null)
 			{
-				// if (#if openfl_disable_context_cache true #else texture != __contextState.textures[i] #end) {
-
-				// TODO: Cleaner approach?
 				if (texture.__textureTarget == gl.TEXTURE_2D)
 				{
 					__bindGLTexture2D(texture.__getTexture());
@@ -2392,13 +2434,10 @@ import lime.math.Vector2;
 				}
 
 				#if (desktop && !html5)
-				// TODO: Cache?
 				gl.enable(gl.TEXTURE_2D);
 				#end
 
 				__contextState.textures[i] = texture;
-
-				// }
 
 				texture.__setSamplerState(samplerState);
 			}
@@ -2407,47 +2446,95 @@ import lime.math.Vector2;
 				__bindGLTexture2D(null);
 			}
 
-			if (__state.program != null && __state.program.__format == AGAL && samplerState.textureAlpha)
-			{
-				gl.activeTexture(gl.TEXTURE0 + sampler + 4);
+			bound[i] = texture;
 
-				if (texture != null && texture.__alphaTexture != null)
-				{
-					if (texture.__alphaTexture.__textureTarget == gl.TEXTURE_2D)
-					{
-						__bindGLTexture2D(texture.__alphaTexture.__getTexture());
-					}
-					else
-					{
-						__bindGLTextureCubeMap(texture.__alphaTexture.__getTexture());
-					}
+			// The bind above marked this unit stale; after recording the object the entry
+			// describes GL again, so clear the flag. Alpha binds land on `sampler + 4` and
+			// are handled by the same mechanism on a later iteration.
+			while (stale.length <= i)
+				stale.push(false);
+			stale[i] = false;
 
-					texture.__alphaTexture.__setSamplerState(samplerState);
-					gl.uniform1i(__state.program.__agalAlphaSamplerEnabled[sampler].location, 1);
-
-					#if (desktop && !html5)
-					// TODO: Cache?
-					gl.enable(gl.TEXTURE_2D);
-					#end
-				}
-				else
-				{
-					__bindGLTexture2D(null);
-					if (__state.program.__agalAlphaSamplerEnabled[sampler] != null)
-					{
-						gl.uniform1i(__state.program.__agalAlphaSamplerEnabled[sampler].location, 0);
-					}
-				}
-			}
+			__flushGLAlphaSampler(sampler, texture, samplerState);
 
 			sampler++;
 		}
 	}
 
+	@:noCompletion private function __flushGLAlphaSampler(sampler:Int, texture:TextureBase, samplerState:SamplerState):Void
+	{
+		if (__state.program == null || __state.program.__format != AGAL || !samplerState.textureAlpha)
+		{
+			return;
+		}
+
+		__setGLActiveTexture(sampler + 4);
+
+		if (texture != null && texture.__alphaTexture != null)
+		{
+			if (texture.__alphaTexture.__textureTarget == gl.TEXTURE_2D)
+			{
+				__bindGLTexture2D(texture.__alphaTexture.__getTexture());
+			}
+			else
+			{
+				__bindGLTextureCubeMap(texture.__alphaTexture.__getTexture());
+			}
+
+			texture.__alphaTexture.__setSamplerState(samplerState);
+			gl.uniform1i(__state.program.__agalAlphaSamplerEnabled[sampler].location, 1);
+
+			#if (desktop && !html5)
+			gl.enable(gl.TEXTURE_2D);
+			#end
+		}
+		else
+		{
+			__bindGLTexture2D(null);
+			if (__state.program.__agalAlphaSamplerEnabled[sampler] != null)
+			{
+				gl.uniform1i(__state.program.__agalAlphaSamplerEnabled[sampler].location, 0);
+			}
+		}
+	}
+
+	@:noCompletion private inline function __setGLActiveTexture(unit:Int):Void
+	{
+		if (__contextState.glActiveTextureUnit != unit)
+		{
+			gl.activeTexture(gl.TEXTURE0 + unit);
+			__contextState.glActiveTextureUnit = unit;
+		}
+	}
+
+	@:noCompletion public function __setGLViewport(x:Int, y:Int, width:Int, height:Int):Void
+	{
+		var vp = __contextState.glViewport;
+		if (vp[0] == x && vp[1] == y && vp[2] == width && vp[3] == height) return;
+		gl.viewport(x, y, width, height);
+		vp[0] = x;
+		vp[1] = y;
+		vp[2] = width;
+		vp[3] = height;
+	}
+
+	@:noCompletion public function __invalidateGLCache():Void
+	{
+		if (__contextState == null) return;
+		// resized in place: this runs several times per frame and `new Array()` each time
+		// hands the collector a fresh object for no reason.
+		__contextState.glSamplerTextures.resize(0);
+		__contextState.glSamplerStale.resize(0);
+		__contextState.glActiveTextureUnit = -1;
+		var vp = __contextState.glViewport;
+		vp[0] = -1;
+		vp[1] = -1;
+		vp[2] = -1;
+		vp[3] = -1;
+	}
+
 	@:noCompletion private function __flushGLViewport():Void
 	{
-		// TODO: Cache
-
 		if (__state.renderToTexture == null)
 		{
 			if (__stage.context3D == this)
@@ -2463,11 +2550,11 @@ import lime.math.Vector2;
 				#end
 				var x = __stage3D == null ? 0 : Std.int(__stage3D.x);
 				var y = Std.int((__stage.window.height * __stage.window.scale) - scaledBackBufferHeight - (__stage3D == null ? 0 : __stage3D.y));
-				gl.viewport(x, y, scaledBackBufferWidth, scaledBackBufferHeight);
+				__setGLViewport(x, y, scaledBackBufferWidth, scaledBackBufferHeight);
 			}
 			else
 			{
-				gl.viewport(0, 0, backBufferWidth, backBufferHeight);
+				__setGLViewport(0, 0, backBufferWidth, backBufferHeight);
 			}
 		}
 		else
@@ -2494,7 +2581,7 @@ import lime.math.Vector2;
 				height = cubeTexture.__size;
 			}
 
-			gl.viewport(0, 0, width, height);
+			__setGLViewport(0, 0, width, height);
 		}
 	}
 

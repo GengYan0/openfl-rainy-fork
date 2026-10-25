@@ -385,12 +385,16 @@ class OpenGLRenderer extends DisplayObjectRenderer
 		}
 	}
 
-	/**
-		Updates the current OpenGL viewport using the current OpenFL stage coordinates
-	**/
 	public function setViewport():Void
 	{
-		__gl.viewport(__offsetX, __offsetY, __displayWidth, __displayHeight);
+		if (__context3D != null)
+		{
+			__context3D.__setGLViewport(__offsetX, __offsetY, __displayWidth, __displayHeight);
+		}
+		else
+		{
+			__gl.viewport(__offsetX, __offsetY, __displayWidth, __displayHeight);
+		}
 	}
 
 	/**

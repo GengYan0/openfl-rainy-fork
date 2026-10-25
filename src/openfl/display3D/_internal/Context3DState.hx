@@ -55,6 +55,15 @@ class Context3DState
 	// vertex buffer at?
 	public var shader:Shader; // TODO: Merge shader/program3d
 
+	public var glSamplerTextures:Array<TextureBase>;
+
+	public var glSamplerStale:Array<Bool>;
+
+	/** Active texture unit. GL starts on unit 0. */
+	public var glActiveTextureUnit:Int = 0;
+
+	public var glViewport:Array<Int>;
+
 	private var __currentGLArrayBuffer:GLBuffer;
 	private var __currentGLElementArrayBuffer:GLBuffer;
 	private var __currentGLFramebuffer:GLFramebuffer;
@@ -98,6 +107,9 @@ class Context3DState
 		stencilTriangleFace = FRONT_AND_BACK;
 		stencilWriteMask = 0xFF;
 		textures = new Array();
+		glSamplerTextures = new Array();
+		glSamplerStale = new Array();
+		glViewport = [-1, -1, -1, -1];
 		__frontFaceGLCCW = true;
 
 		#if lime

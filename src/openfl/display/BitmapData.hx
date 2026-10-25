@@ -206,6 +206,8 @@ class BitmapData implements IBitmapDrawable
 	@:noCompletion private var __indexBufferGrid:Rectangle;
 	@:noCompletion private var __isMask:Bool;
 	@:noCompletion private var __isValid:Bool;
+
+	@:noCompletion public var __cpuFill:Bool = false;
 	@:noCompletion private var __mask:DisplayObject;
 	@:noCompletion private var __renderable:Bool;
 	@:noCompletion private var __renderTransform:Matrix;
@@ -605,7 +607,6 @@ class BitmapData implements IBitmapDrawable
 		* `BitmapDataChannel.BLUE`
 		* `BitmapDataChannel.ALPHA`
 
-
 		@param sourceBitmapData The input bitmap image to use. The source image
 								can be a different BitmapData object or it can
 								refer to the current BitmapData object.
@@ -729,7 +730,6 @@ class BitmapData implements IBitmapDrawable
 		When the `dispose()` method is called on an image, the width
 		and height of the image are set to 0. All subsequent calls to methods or
 		properties of this BitmapData instance fail, and an exception is thrown.
-
 
 		`BitmapData.dispose()` releases the memory occupied by the
 		actual bitmap data, immediately (a bitmap can consume up to 64 MB of
@@ -3210,7 +3210,8 @@ class BitmapData implements IBitmapDrawable
 			color = 0;
 		}
 
-		if (allowFramebuffer
+		if (!__cpuFill
+			&& allowFramebuffer
 			&& __texture != null
 			&& __texture.__glFramebuffer != null
 			&& Lib.current.stage.__renderer.__type == OPENGL)
