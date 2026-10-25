@@ -74,6 +74,8 @@ class OpenGLRenderer extends DisplayObjectRenderer
 	@:noCompletion private static var __staticDefaultGraphicsShader:GraphicsShader;
 	@:noCompletion private static var __staticMaskShader:Context3DMaskShader;
 
+	@:noCompletion private static var __contextOwner:OpenGLRenderer;
+
 	@:noCompletion private var __context3D:Context3D;
 	@:noCompletion private var __clipRects:Array<Rectangle>;
 	@:noCompletion private var __currentDisplayShader:Shader;
@@ -356,6 +358,8 @@ class OpenGLRenderer extends DisplayObjectRenderer
 	**/
 	public function setShader(shader:Shader):Void
 	{
+		__claimContext();
+
 		__currentShaderBuffer = null;
 
 		if (__currentShader == shader) return;
@@ -756,6 +760,8 @@ class OpenGLRenderer extends DisplayObjectRenderer
 
 	@:noCompletion private override function __render(object:IBitmapDrawable):Void
 	{
+		__claimContext();
+
 		__context3D.setColorMask(true, true, true, true);
 		__context3D.setCulling(NONE);
 		__context3D.setDepthTest(false, ALWAYS);
@@ -1038,10 +1044,17 @@ class OpenGLRenderer extends DisplayObjectRenderer
 
 	@:noCompletion private override function __setBlendMode(value:BlendMode):Void
 	{
+		__claimContext();
+
 		if (__overrideBlendMode != null) value = __overrideBlendMode;
 		if (__blendMode == value) return;
 
 		__blendMode = value;
+
+		// SUBTRACT and the min/max modes change the blend *equation*, which stays active until
+		// something resets it. Without this, one subtract draw turns every later normal draw
+		// into a reverse-subtract one.
+		__context3D.__setGLBlendEquation(__gl.FUNC_ADD);
 
 		switch (value)
 		{
@@ -1057,6 +1070,11 @@ class OpenGLRenderer extends DisplayObjectRenderer
 			case SUBTRACT:
 				__context3D.setBlendFactors(ONE, ONE);
 				__context3D.__setGLBlendEquation(__gl.FUNC_REVERSE_SUBTRACT);
+
+			case EXCLUSION:
+				// src * (1 - dst) + dst * (1 - src) == a + b - 2ab, which is exactly the
+				// Photoshop exclusion formula, so this mode needs no shader pass.
+				__context3D.setBlendFactors(ONE_MINUS_DESTINATION_COLOR, ONE_MINUS_SOURCE_COLOR);
 
 			#if desktop
 			case DARKEN:
@@ -1088,6 +1106,42 @@ class OpenGLRenderer extends DisplayObjectRenderer
 	{
 		setShader(shaderBuffer.shader);
 		__currentShaderBuffer = shaderBuffer;
+	}
+
+	@:noCompletion public static function resetStageStateCache():Void
+	{
+		var stage:Stage = Lib.current != null ? Lib.current.stage : null;
+		if (stage == null) return;
+
+		var renderer = @:privateAccess stage.__renderer;
+		if (Std.isOfType(renderer, OpenGLRenderer))
+			cast(renderer, OpenGLRenderer).__resetStateCache();
+	}
+
+	@:noCompletion inline function __claimContext():Void
+	{
+		if (__contextOwner == this) return;
+
+		__contextOwner = this;
+		__resetStateCache();
+	}
+
+	@:noCompletion private function __resetStateCache():Void
+	{
+		__blendMode = null;
+		__currentShader = null;
+		__currentShaderBuffer = null;
+		__currentDisplayShader = null;
+		__currentGraphicsShader = null;
+
+		// `BitmapData.draw` restores only the render target itself, so the depth/stencil and
+		// multisample flags it switched on would otherwise stay on for the rest of the frame.
+		var state = @:privateAccess __context3D.__state;
+		state.renderToTextureDepthStencil = false;
+		state.renderToTextureAntiAlias = 0;
+		state.renderToTextureSurfaceSelector = 0;
+
+		__context3D.__invalidateGLCache();
 	}
 
 	@:noCompletion private function __suspendClipAndMask():Void

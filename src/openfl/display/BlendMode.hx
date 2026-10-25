@@ -190,25 +190,49 @@ package openfl.display;
 	**/
 	public var SUBTRACT = 14;
 
+	public var EXCLUSION = 15;
+
+	public var COLOR_DODGE = 16;
+
+	public var COLOR_BURN = 17;
+
+	public var SOFT_LIGHT = 18;
+
+	public var HUE = 19;
+
+	public var SATURATION = 20;
+
+	public var COLOR = 21;
+
+	public var LUMINOSITY = 22;
+
 	@:from private static function fromString(value:String):BlendMode
 	{
 		return switch (value)
 		{
 			case "add": ADD;
 			case "alpha": ALPHA;
+			case "colorburn", "color_burn", "color-burn": COLOR_BURN;
+			case "colordodge", "color_dodge", "color-dodge": COLOR_DODGE;
 			case "darken": DARKEN;
 			case "difference": DIFFERENCE;
 			case "erase": ERASE;
-			case "hardlight": HARDLIGHT;
+			case "hardlight", "hard_light", "hard-light": HARDLIGHT;
+			case "hue": HUE;
 			case "invert": INVERT;
 			case "layer": LAYER;
 			case "lighten": LIGHTEN;
+			case "luminosity": LUMINOSITY;
+			case "color": COLOR;
 			case "multiply": MULTIPLY;
 			case "normal": NORMAL;
 			case "overlay": OVERLAY;
+			case "saturation": SATURATION;
 			case "screen": SCREEN;
 			case "shader": SHADER;
+			case "softlight", "soft_light", "soft-light": SOFT_LIGHT;
 			case "subtract": SUBTRACT;
+			case "exclusion": EXCLUSION;
 			default: null;
 		}
 	}
@@ -219,19 +243,27 @@ package openfl.display;
 		{
 			case BlendMode.ADD: "add";
 			case BlendMode.ALPHA: "alpha";
+			case BlendMode.COLOR_BURN: "colorburn";
+			case BlendMode.COLOR_DODGE: "colordodge";
 			case BlendMode.DARKEN: "darken";
 			case BlendMode.DIFFERENCE: "difference";
 			case BlendMode.ERASE: "erase";
 			case BlendMode.HARDLIGHT: "hardlight";
+			case BlendMode.HUE: "hue";
 			case BlendMode.INVERT: "invert";
 			case BlendMode.LAYER: "layer";
 			case BlendMode.LIGHTEN: "lighten";
+			case BlendMode.LUMINOSITY: "luminosity";
+			case BlendMode.COLOR: "color";
 			case BlendMode.MULTIPLY: "multiply";
 			case BlendMode.NORMAL: "normal";
 			case BlendMode.OVERLAY: "overlay";
+			case BlendMode.SATURATION: "saturation";
 			case BlendMode.SCREEN: "screen";
 			case BlendMode.SHADER: "shader";
+			case BlendMode.SOFT_LIGHT: "softlight";
 			case BlendMode.SUBTRACT: "subtract";
+			case BlendMode.EXCLUSION: "exclusion";
 			default: null;
 		}
 	}
@@ -241,19 +273,27 @@ package openfl.display;
 {
 	public var ADD = "add";
 	public var ALPHA = "alpha";
+	public var COLOR_BURN = "colorburn";
+	public var COLOR_DODGE = "colordodge";
 	public var DARKEN = "darken";
 	public var DIFFERENCE = "difference";
 	public var ERASE = "erase";
 	public var HARDLIGHT = "hardlight";
+	public var HUE = "hue";
 	public var INVERT = "invert";
 	public var LAYER = "layer";
 	public var LIGHTEN = "lighten";
+	public var LUMINOSITY = "luminosity";
+	public var COLOR = "color";
 	public var MULTIPLY = "multiply";
 	public var NORMAL = "normal";
 	public var OVERLAY = "overlay";
+	public var SATURATION = "saturation";
 	public var SCREEN = "screen";
 	public var SHADER = "shader";
+	public var SOFT_LIGHT = "softlight";
 	public var SUBTRACT = "subtract";
+	public var EXCLUSION = "exclusion";
 }
 #end
 #else
