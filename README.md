@@ -1,164 +1,137 @@
-[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE.md) [![Haxelib Version](https://img.shields.io/github/tag/openfl/openfl.svg?style=flat&label=haxelib&color=df7900)](https://lib.haxe.org/p/openfl) [![Build Status](https://img.shields.io/github/actions/workflow/status/openfl/openfl/main.yml?branch=develop)](https://github.com/openfl/openfl/actions) [![Community](https://img.shields.io/discourse/posts?color=24afc4&server=https%3A%2F%2Fcommunity.openfl.org&label=community)](https://community.openfl.org) [![Discord Server](https://img.shields.io/discord/415681294446493696.svg?color=7289da)](https://discordapp.com/invite/tDgq8EE)
+# rainy-openfl
 
+OpenFL 9.5.2 的 Rainy 构建。渲染层与 Stage3D 后端的改动，`openfl` 的公开 API 全部保留。
 
-<br />
-<h1 align="center"><img src="assets/openfl.png" alt="OpenFL"/></h1>
+## 能力一览
 
+| 能力 | 入口 | 默认 |
+|---|---|---|
+| 8 种扩展混合模式 | `openfl.display.BlendMode` | — |
+| Stage3D GL 状态影子 | 自动 | 开 |
+| 渲染器状态缓存自愈 | 自动 | 开 |
+| 帧缓冲深度纹理附件 | `TextureBase.depthTextureEnabled` | `false` |
+| CPU 侧填充 | `BitmapData.__cpuFill` | 自动按路径选择 |
 
-Introduction
-============
+## 安装
 
-The OpenFL project is an open-source answer to the needs of game and application developers everywhere, looking for a fast, simple approach to delivering creative masterpieces without relying on a specific implementation, such as a browser plugin.
+```bash
+haxelib dev openfl "D:/libs/rainy-openfl"
+```
 
-Using the innovative [Haxe](https://haxe.org/) programming language, OpenFL supports wildly different platforms using one codebase. Transitioning from one target type to another is simple, and keeps the strengths of the target environment. OpenFL builds to native C++, Neko or Flash bytecode, or JavaScript, enabling maximum compatibility and runtime performance.
+或者：
 
-OpenFL depends on [Lime](https://lime.openfl.org), which has easy-to-use command-line tools, and provides backend support.
+```bash
+haxelib git openfl https://github.com/GengYan0/openfl-rainy-fork
+```
 
+配套 `flixel` 与 `lime` 见各自仓库。三者要一起用，单换一个不会坏，但拿不到跨层收益。
 
-Platforms
-=========
+## 1. 扩展混合模式
 
-Currently, OpenFL supports the following platforms:
+`BlendMode` 新增 8 个值。`EXCLUSION` 与 `LINEAR_BURN` 走固定管线；其余七种需要背景与
+前景两张纹理同趟采样，由 `FlxCamera` 的图层合成处理（见 `rainy-flixel`）。
 
- * iOS
- * Android
- * HTML5
- * Windows
- * macOS
- * Linux
- * Flash
- * AIR
+| 值 | 字面量 | 需要图层合成 |
+|---|---|---|
+| `EXCLUSION` | `"exclusion"` | 否 |
+| `COLOR_DODGE` | `"colordodge"` | 是 |
+| `COLOR_BURN` | `"colorburn"` | 是 |
+| `SOFT_LIGHT` | `"softlight"` | 是 |
+| `HUE` | `"hue"` | 是 |
+| `SATURATION` | `"saturation"` | 是 |
+| `COLOR` | `"color"` | 是 |
+| `LUMINOSITY` | `"luminosity"` | 是 |
 
-There is also a community effort to bring OpenFL to consoles, OpenFL is running on:
+数值形式与字符串形式都认：
 
- * Switch
- * Wii U
- * PlayStation 4
- * PlayStation 3
- * PlayStation Vita
- * Xbox One
+```haxe
+sprite.blend = BlendMode.SOFT_LIGHT;
+graphics.__blendMode = BlendMode.fromString('soft-light');
+trace(BlendMode.toString(BlendMode.COLOR_BURN));   // "colorburn"
+```
 
-_Additional details on console support will be available in the future._
+字符串解析兼容 `colorburn` / `color_burn` / `color-burn` 三种写法，配置文件和谱面事件里
+三种都见过。
 
-OpenFL is also being used in additional environments:
+## 2. Stage3D GL 状态影子
 
- * [TiVo](https://www.tivo.com) boxes
- * Raspberry Pi
- * Node.js
+`Context3D` 原来每次 `drawTriangles` 都重绑一次采样器纹理，即使槽位上已经绑着同一张。
+缓存之后只在以下情况才真正下发：
 
+- 槽位为空或存的是别的纹理；
+- 该槽位被绕开管线的路径动过（纹理上传、视频帧、直接绑定）。这些路径会置
+  `glSamplerStale[i]`，刷新时先检查它；
+- 上下文被别的渲染器接管。
 
-Libraries
-=========
+AGAL 的 alpha 采样器（`sampler + 4`）在「纹理未变」的分支上也照样绑定。原来这里被跳过，
+结果是只换 alpha 纹理而彩色纹理不动时 alpha 还是旧的，关掉 `textureAlpha` 后
+「已启用」uniform 仍停在 1。
 
-OpenFL is compatible with [many libraries](https://lib.haxe.org/all), ported from ActionScript or written originally in Haxe, including:
+视口同样有影子，`OpenGLRenderer.setViewport` 走它。直接写 `gl.viewport` 会让 Stage3D
+以为旧矩形还在，下一次想用那个矩形的绘制就跳过写入，整帧落到错误区域。
 
- * [Starling](https://github.com/openfl/starling)
- * [Away3D](https://github.com/openfl/away3d)
- * [DragonBones](https://github.com/openfl/dragonbones)
- * [Nape](https://github.com/deltaluca/nape)
- * [Box2D](https://github.com/jgranick/Box2D)
- * [Actuate](https://github.com/jgranick/Actuate)
- * [HaxeFlixel](https://github.com/haxeflixel/flixel)
- * [HaxePunk](https://github.com/HaxePunk/HaxePunk)
+```haxe
+// 绕过 Context3D 直接改 GL 状态后，让影子失效
+Context3D.__invalidateGLCache();
+```
 
-OpenFL also powers other platforms, such as [Stencyl](https://www.stencyl.com/).
+## 3. 渲染器状态缓存自愈
 
+一块 GL 上下文被多个 `OpenGLRenderer` 实例轮流用时（离屏渲染、`BitmapData.draw`、
+图层合成都这样），后写入的一方会覆盖前者的混合状态，前者下一次绘制就带着别人的状态画的。
 
-Code Editors
-============
+现在在状态写入点自己发现：
 
-Plugins have been written for many [code editors](https://haxe.org/documentation/introduction/editors-and-ides.html), but the most popular editors used for Haxe and OpenFL development are:
+```haxe
+@:noCompletion inline function __claimContext():Void
+{
+	if (__contextOwner == this) return;
+	__contextOwner = this;
+	__resetStateCache();
+}
+```
 
- * [Visual Studio Code](https://code.visualstudio.com/) (with [plugin](https://marketplace.visualstudio.com/items?itemName=openfl.lime-vscode-extension))
- * [HaxeDevelop](https://haxefoundation.github.io/haxedevelop.org/)
- * [Sublime Text](https://www.sublimetext.com) (with [plugin](https://github.com/clemos/haxe-sublime-bundle))
- * [IntelliJ IDEA](https://www.jetbrains.com/idea/) (with [plugin](https://plugins.jetbrains.com/plugin/6873-haxe-toolkit-support))
- * [Moonshine IDE](https://moonshine-ide.com/)
+`__setBlendMode` / `setShader` / `__render` 三个入口先认领上下文。`BitmapData.draw` 一定走
+自己的 renderer 实例，控制权交接就变成「owner 变了」，一次引用比较即自愈。
 
-Easy Deployment
-===============
+`resetStageStateCache()` 保留为公开 API，用途收窄成「绕过 renderer 直接改 GL 状态」：
 
-OpenFL includes the tools you need to build, package, install and run on each target platform.
+```haxe
+OpenGLRenderer.resetStageStateCache();
+```
 
-For example, `openfl test html5` will generate an HTML5 project, create a local web server and open your default browser.
+## 4. 帧缓冲深度纹理附件
 
-Some platforms will require a standard SDK to build (such as Visual Studio C++ or Xcode). OpenFL includes "setup" commands to even help the install of these standard tools.
+默认用 renderbuffer 存深度。需要之后采样深度（SSAO、软粒子、深度雾）时打开纹理附件：
 
+```haxe
+TextureBase.depthTextureEnabled = true;
 
-3D Support
-==========
+var target = new Texture(1024, 1024, false, 1, Context3DTextureFormat.BGRA, true);
+var depth:GLTexture = target.getDepthTextureID();   // 0 表示没拿到
+```
 
-OpenFL is designed primarily for 2D development, but you can use the `OpenGLRenderer` API to write your own WebGL-style code, and mix it with the OpenFL display architecture.
+附件挂上后会做帧缓冲完整性检查，驱动不接受的格式自动退回 renderbuffer，不会画出空白。
+`depthTextureEnabled` 是静态开关，同一进程内所有 `Texture` 共享这个选择。
 
-OpenFL also has support for the Stage3D API. If you like you can use this directly, or you can also use libraries such as [Away3D](https://github.com/away3d/away3d-core-openfl/) or [Starling](https://github.com/openfl/starling).
+## 5. CPU 侧填充
 
+`BitmapData.fillRect` 走 CPU 缓冲，不再用带裁剪的帧缓冲清除。后者每次要切两次渲染目标，
+UI 一帧重绘几百个小矩形时代价明显。
 
-Native Extensions
-=================
+GPU 副本在下次绑定时按 `image.version` 变化重传，`ImageDataUtil.fillRect` 会推进版本，
+所以两边保持一致。
 
-When you target a native platform, the output is true native C++, enabling deep integration with platform features and third-party SDKs. There is a standard Haxe "CFFI" API for connecting Haxe classes directly to C++ libraries.
+```haxe
+bitmap.fillRect(new Rectangle(0, 0, 100, 40), 0x00000000);
+```
 
-We have also developed a straight-forward Android library project API for adding Java-based extensions, too. Native extensions can also use the standard Lime project format, for flexible control over dependencies, adding additional assets or tuning the output of your project.
+## 边界
 
-The result are native extensions that can be made to interchangeably drop into projects, without breaking one another. We have made no attempt to emulate the system for AIR native extensions, which are much more difficult to create and less flexible.
+- 深度纹理与 renderbuffer 二选一，同一个 `Texture` 上不能来回切。
+- 图层合成模式在 `FlxCamera.layerBlendEnabled = false` 时退回普通 source-over，
+  视觉上等于颜色变淡，不是出错。
+- 状态影子只覆盖 `Context3D` 与 `OpenGLRenderer` 已知的写入口。新增自定义 GL 直调要自己
+  调 `__invalidateGLCache()` 或 `resetStageStateCache()`。
 
-
-Core Components
-===============
-
- * [openfl](https://github.com/openfl/openfl)
- * [lime](https://github.com/openfl/lime)
- * [hxcpp](https://github.com/HaxeFoundation/hxcpp)
-
-OpenFL relies upon [Lime](https://lime.openfl.org), a foundation for cross-platform project development.
-
-[hxcpp](https://github.com/HaxeFoundation/hxcpp) is used automatically by the Lime tools to manage the C++ compilation process for each platform, and to provide the Haxe standard library for C++ support.
-
-
-License
-=======
-
-OpenFL is free, open-source software under the [MIT license](LICENSE.md).
-
-
-Installing OpenFL
-=================
-
-Follow the directions at [openfl.org](https://www.openfl.org/download).
-
-
-Development Builds
-==================
-
-When there are changes, OpenFL is built nightly. Builds are available for download [here](https://github.com/openfl/openfl/actions?query=branch%3Adevelop+is%3Asuccess).
-
-To install a development build, use the "haxelib local" command:
-
-    haxelib local openfl-haxelib.zip
-
-
-Building from Source
-====================
-
-Clone the OpenFL repository:
-
-    git clone https://github.com/openfl/openfl
-
-Tell haxelib where your development copy of OpenFL is installed:
-
-    haxelib dev openfl openfl
-
-To return to release builds:
-
-    haxelib dev openfl
-
-You may also need a development build of Lime installed.
-
-
-Join the Community
-==================
-
-Have a question? Want a new place to hang out?
-
- * [Forums](https://community.openfl.org)
- * [Discord](https://discordapp.com/invite/tDgq8EE)
+改动逐条记录在 `RAINY-FORK.md`。

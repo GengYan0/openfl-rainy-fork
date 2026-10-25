@@ -1,15 +1,13 @@
 {
 	"name": "openfl",
-	"url": "http://www.openfl.org",
+	"url": "https://github.com/GengYan0/openfl-rainy-fork",
 	"license": "MIT",
 	"tags": [],
-	"description": "The \"Open Flash Library\" for fast 2D development",
+	"description": "OpenFL 9.5.2 build with Stage3D GL state shadowing, self-healing renderer state cache, depth texture attachment and eight extended blend modes.",
 	"version": "9.5.2",
-	"releasenote": "Various bug fixes",
+	"releasenote": "GL sampler and viewport shadowing, per-context state cache self-heal, TextureBase depth texture, CPU fill path, seven composite blend modes.",
 	"contributors": [
-		"singmajesty",
-		"bowlerhat",
-		"Dimensionscape"
+		"RainyEngine"
 	],
 	"classPath": "src"
 }
