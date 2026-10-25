@@ -1,10 +1,8 @@
-# Rainy fork of OpenFL 9.5.2
+# rainy-openfl 技术说明
 
-Upstream: [openfl/openfl](https://github.com/openfl/openfl) 9.5.2, MIT.
-The base is imported as a single commit — the whole tree is present, upstream
-history is not.
+基线是 9.5.2 的完整树。
 
-## What differs from upstream
+## 与 9.5.2 的差异
 
 ### Stage3D GL state shadowing (`display3D/Context3D`)
 
