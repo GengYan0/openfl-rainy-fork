@@ -2531,6 +2531,20 @@ import lime.math.Vector2;
 		vp[1] = -1;
 		vp[2] = -1;
 		vp[3] = -1;
+
+		// Both buffer bindings are skipped when the shadow already holds the requested
+		// object, so they go stale exactly like the samplers do, and for the same reason:
+		// whoever called this wrote GL behind our back. Leaving them out let the skip
+		// survive the invalidation, and the next `setVertexBufferAt` then issued
+		// `vertexAttribPointer` against a buffer that was no longer bound — the attribute
+		// ends up reading another draw's vertices.
+		//
+		// The framebuffer is deliberately absent. Its flush is skipped by the same kind of
+		// comparison, but `present` swaps the primary framebuffer, so forcing a rebind at
+		// an arbitrary moment can move the rest of the frame into the buffer that was just
+		// swapped in. Buffers carry no such history.
+		__contextState.__currentGLArrayBuffer = null;
+		__contextState.__currentGLElementArrayBuffer = null;
 	}
 
 	@:noCompletion private function __flushGLViewport():Void
