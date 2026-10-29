@@ -2020,7 +2020,6 @@ import lime.math.Vector2;
 
 		if (unit < 0)
 		{
-			// Unknown unit: nothing can be attributed, so drop the whole shadow.
 			__contextState.glSamplerTextures.resize(0);
 			stale.resize(0);
 			return;
@@ -2398,16 +2397,7 @@ import lime.math.Vector2;
 				samplerState = __state.samplerStates[i];
 			}
 
-			// A texture that is already bound on this sampler is not re-bound. Every
-			// draw call reaches here, and re-binding an unchanged texture costs a full
-			// driver validation pass for nothing. Sampling params still go through,
-			// since those are cheap and are what typically changes between draws.
 			//
-			// `i < bound.length` matters: an out-of-range read also yields null, so a
-			// missing entry would look identical to a recorded null and the first draw
-			// after every invalidate would skip an unbind that was still needed.
-			// `!stale[i]` covers the other half — a slot some other caller has rebound
-			// behind our back still holds the old object here.
 			if (i < bound.length && (i >= stale.length || !stale[i]) && bound[i] == texture)
 			{
 				if (texture != null)
@@ -2448,9 +2438,6 @@ import lime.math.Vector2;
 
 			bound[i] = texture;
 
-			// The bind above marked this unit stale; after recording the object the entry
-			// describes GL again, so clear the flag. Alpha binds land on `sampler + 4` and
-			// are handled by the same mechanism on a later iteration.
 			while (stale.length <= i)
 				stale.push(false);
 			stale[i] = false;
@@ -2521,8 +2508,6 @@ import lime.math.Vector2;
 	@:noCompletion public function __invalidateGLCache():Void
 	{
 		if (__contextState == null) return;
-		// resized in place: this runs several times per frame and `new Array()` each time
-		// hands the collector a fresh object for no reason.
 		__contextState.glSamplerTextures.resize(0);
 		__contextState.glSamplerStale.resize(0);
 		__contextState.glActiveTextureUnit = -1;
@@ -2532,17 +2517,7 @@ import lime.math.Vector2;
 		vp[2] = -1;
 		vp[3] = -1;
 
-		// Both buffer bindings are skipped when the shadow already holds the requested
-		// object, so they go stale exactly like the samplers do, and for the same reason:
-		// whoever called this wrote GL behind our back. Leaving them out let the skip
-		// survive the invalidation, and the next `setVertexBufferAt` then issued
-		// `vertexAttribPointer` against a buffer that was no longer bound — the attribute
-		// ends up reading another draw's vertices.
 		//
-		// The framebuffer is deliberately absent. Its flush is skipped by the same kind of
-		// comparison, but `present` swaps the primary framebuffer, so forcing a rebind at
-		// an arbitrary moment can move the rest of the frame into the buffer that was just
-		// swapped in. Buffers carry no such history.
 		__contextState.__currentGLArrayBuffer = null;
 		__contextState.__currentGLElementArrayBuffer = null;
 	}

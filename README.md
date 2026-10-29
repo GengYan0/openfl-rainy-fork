@@ -15,12 +15,6 @@ OpenFL 9.5.2 的 Rainy 构建。渲染层与 Stage3D 后端的改动，`openfl` 
 ## 安装
 
 ```bash
-haxelib dev openfl "D:/libs/rainy-openfl"
-```
-
-或者：
-
-```bash
 haxelib git openfl https://github.com/GengYan0/openfl-rainy-fork
 ```
 

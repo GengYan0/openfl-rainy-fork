@@ -1051,9 +1051,6 @@ class OpenGLRenderer extends DisplayObjectRenderer
 
 		__blendMode = value;
 
-		// SUBTRACT and the min/max modes change the blend *equation*, which stays active until
-		// something resets it. Without this, one subtract draw turns every later normal draw
-		// into a reverse-subtract one.
 		__context3D.__setGLBlendEquation(__gl.FUNC_ADD);
 
 		switch (value)
@@ -1072,8 +1069,6 @@ class OpenGLRenderer extends DisplayObjectRenderer
 				__context3D.__setGLBlendEquation(__gl.FUNC_REVERSE_SUBTRACT);
 
 			case EXCLUSION:
-				// src * (1 - dst) + dst * (1 - src) == a + b - 2ab, which is exactly the
-				// Photoshop exclusion formula, so this mode needs no shader pass.
 				__context3D.setBlendFactors(ONE_MINUS_DESTINATION_COLOR, ONE_MINUS_SOURCE_COLOR);
 
 			#if desktop
@@ -1134,8 +1129,6 @@ class OpenGLRenderer extends DisplayObjectRenderer
 		__currentDisplayShader = null;
 		__currentGraphicsShader = null;
 
-		// `BitmapData.draw` restores only the render target itself, so the depth/stencil and
-		// multisample flags it switched on would otherwise stay on for the rest of the frame.
 		var state = @:privateAccess __context3D.__state;
 		state.renderToTextureDepthStencil = false;
 		state.renderToTextureAntiAlias = 0;

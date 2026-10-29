@@ -59,7 +59,7 @@ class Context3DState
 
 	public var glSamplerStale:Array<Bool>;
 
-	/** Active texture unit. GL starts on unit 0. */
+	
 	public var glActiveTextureUnit:Int = 0;
 
 	public var glViewport:Array<Int>;
